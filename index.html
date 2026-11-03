@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>궁합 보기</title>
+  <style>
+    /* 모양: 휴대폰 우선, 큰 글씨, 색은 흰색 + 분홍 하나 */
+    * { box-sizing: border-box; }
+    body {
+      margin: 0 auto; padding: 20px; max-width: 480px;
+      font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+      font-size: 18px; color: #222; background: #fff;
+    }
+    h1 { text-align: center; font-size: 28px; color: #d6336c; margin: 4px 0 16px; }
+    fieldset { border: 1px solid #ddd; border-radius: 12px; padding: 10px 16px 12px; margin: 0 0 12px; }
+    legend { font-weight: bold; padding: 0 6px; }
+    label { display: block; margin-top: 6px; font-size: 16px; }
+    input {
+      display: block; width: 100%; min-height: 48px; margin-top: 4px; padding: 10px;
+      font-size: 18px; border: 1px solid #bbb; border-radius: 8px; background: #fff;
+    }
+    .msg { color: #d6336c; font-size: 15px; min-height: 20px; margin-top: 2px; }
+    button {
+      width: 100%; padding: 16px; margin-top: 4px; font-size: 20px; font-weight: bold;
+      color: #fff; background: #d6336c; border: none; border-radius: 12px;
+    }
+    #result { text-align: center; margin-top: 20px; }
+    #score { font-size: 64px; font-weight: bold; color: #d6336c; line-height: 1.1; }
+    #comment { margin-top: 6px; font-size: 18px; }
+  </style>
+</head>
+<body>
+  <h1>궁합 보기</h1>
+
+  <fieldset>
+    <legend>첫 번째 사람</legend>
+    <label>이름 <input id="name1" type="text" maxlength="5" placeholder="김철수"></label>
+    <div class="msg" id="msgName1"></div>
+    <label>생년월일 <input id="date1" type="date"></label>
+    <div class="msg" id="msgDate1"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>두 번째 사람</legend>
+    <label>이름 <input id="name2" type="text" maxlength="5" placeholder="이영희"></label>
+    <div class="msg" id="msgName2"></div>
+    <label>생년월일 <input id="date2" type="date"></label>
+    <div class="msg" id="msgDate2"></div>
+  </fieldset>
+
+  <button id="btn">궁합 보기</button>
+
+  <div id="result">
+    <div id="score"></div>
+    <div id="comment"></div>
+  </div>
+
+  <script>
+    // 1) 획수 표: 한글 한 글자 = 초성 + 중성 + 종성. 유니코드 순서대로 적어 둔 것.
+    const CHO  = [2,4,2,3,6,5,4,4,8,2,4,1,3,6,4,3,4,4,3];                   // ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ
+    const JUNG = [2,3,3,4,2,3,3,4,2,4,5,3,3,2,4,5,3,3,1,2,1];               // ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ
+    const JONG = [0,2,4,4,2,5,5,3,5,7,9,9,7,9,9,8,4,4,6,2,4,1,3,4,3,4,4,3]; // 없음 ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ
+
+    function strokes(ch) {
+      const code = ch.charCodeAt(0) - 0xAC00;      // '가'를 0번으로 놓은 번호
+      return CHO[Math.floor(code / 588)] + JUNG[Math.floor((code % 588) / 28)] + JONG[code % 28];
+    }
+
+    // 2) 번갈아 놓고 줄이기 — 이름과 생년월일이 같이 쓰는 계산
+    function interleave(a, b) {
+      const out = [];
+      for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        if (i < a.length) out.push(a[i]);
+        if (i < b.length) out.push(b[i]);
+      }
+      return out;
+    }
+    function reduceToScore(nums) {
+      let row = nums.map(n => n % 10);              // 끝자리만 남김
+      while (row.length > 2) {                      // 두 자리가 남을 때까지
+        const next = [];
+        for (let i = 0; i < row.length - 1; i++) next.push((row[i] + row[i + 1]) % 10);
+        row = next;
+      }
+      return row[0] * 10 + row[1];
+    }
+
+    // 3) 구간별 코멘트
+    function commentFor(score) {
+      if (score < 20) return '아직은 서먹한 사이. 천천히 알아 가세요.';
+      if (score < 40) return '조금 어긋나지만 맞춰 가면 괜찮아요.';
+      if (score < 60) return '무난한 사이. 노력하면 더 좋아져요.';
+      if (score < 80) return '잘 맞는 편! 서로 편한 사이예요.';
+      return '찰떡궁합! 놓치지 마세요.';
+    }
+
+    // 4) 입력 검사 — 틀리면 안내 문구, 맞으면 빈 문자열
+    function checkName(value) {
+      if (value === '') return '이름을 입력하세요';
+      if (!/^[가-힣]{2,5}$/.test(value)) return '한글 2~5자로 입력하세요';
+      return '';
+    }
+    function todayString() {
+      const d = new Date();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return d.getFullYear() + '-' + mm + '-' + dd;
+    }
+    function checkDate(value) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return '생년월일을 선택하세요';
+      if (value > todayString()) return '오늘 이전 날짜를 선택하세요';
+      return '';
+    }
+
+    // 5) 버튼을 누르면: 검사 → 통과하면 계산 → 화면에 표시
+    document.getElementById('btn').addEventListener('click', function () {
+      const name1 = document.getElementById('name1').value.trim();
+      const date1 = document.getElementById('date1').value;
+      const name2 = document.getElementById('name2').value.trim();
+      const date2 = document.getElementById('date2').value;
+
+      const errors = {
+        msgName1: checkName(name1), msgDate1: checkDate(date1),
+        msgName2: checkName(name2), msgDate2: checkDate(date2),
+      };
+      for (const id in errors) document.getElementById(id).textContent = errors[id];
+      document.getElementById('score').textContent = '';
+      document.getElementById('comment').textContent = '';
+      if (Object.values(errors).some(msg => msg !== '')) return;
+
+      const nameScore = reduceToScore(interleave([...name1].map(strokes), [...name2].map(strokes)));
+      const digits = s => s.replace(/-/g, '').split('').map(Number);
+      const dateScore = reduceToScore(interleave(digits(date1), digits(date2)));
+      const finalScore = Math.round((nameScore + dateScore) / 2);
+
+      document.getElementById('score').textContent = finalScore + '점';
+      document.getElementById('comment').textContent = commentFor(finalScore);
+    });
+  </script>
+</body>
+</html>
